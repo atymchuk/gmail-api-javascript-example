@@ -1,28 +1,11 @@
-// The jQuery library does not feature the `when.all` function
-// to handle an array of promises, so we put up a polyfill
-if (jQuery.when.all === undefined) {
-    jQuery.when.all = function(deferreds) {
-        var deferred = new jQuery.Deferred();
-        $.when.apply(jQuery, deferreds).then(
-            function() {
-                deferred.resolve(Array.prototype.slice.call(arguments));
-            },
-            function() {
-                deferred.fail(Array.prototype.slice.call(arguments));
-            });
-
-        return deferred;
-    }
-}
-
-// In order not to pollute the global namespace
+// In order to have a clean global namespace
 // we wrap the whole library in a function
 var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
 
   var clientId, 
       apiKey,
       scopes = 'https://www.googleapis.com/auth/gmail.readonly',
-      messages = Object.create(null);
+      Messages = {};
 
   function config(config) {
     clientId = config.clientId;
@@ -93,18 +76,16 @@ var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
 
         messageRequest.execute(function(message) {
           // Save the message in a collection 
-          messages[message.id] = message;
-          // processMessage(message);
+          Messages[message.id] = message;
           promise.resolve(message);
         });
-
 
       });
 
       $.when.all(promises).then(function(messages){ 
 
         // Sort messages by date in descending order
-        messages.sort(function(a,b) {
+        messages.sort(function(a, b) {
           var d1 = new Date(getHeader(a.payload.headers, 'Date')).valueOf();
           var d2 = new Date(getHeader(b.payload.headers, 'Date')).valueOf();
           return d1 < d2 ? 1 : (d1 > d2 ? -1 : 0);
@@ -127,40 +108,26 @@ var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
     var subject = getHeader(message.payload.headers, 'Subject');
     var date = moment(new Date(getHeader(message.payload.headers, 'Date'))).format('DD MMM, YY HH:mm');
     // Remove the email address, leave only sender's name
-    var from = sender.replace(/<.*@.*\..{2,8}>/g, '').replace(/"+/g, '');
+    var from = sender.replace(/<\S+@\S+\.\S{2,8}>/g, '').replace(/"+/g, '');
 
     from = from.trim() || sender;
 
-    var rendered = Mustache.render(row, {
+    var renderedRow = Mustache.render(row, {
       from : from,
       subject : subject,
       messageId : message.id,
       date : date
     });
     
-    $('.table-inbox tbody').append(rendered);
-
-    // Handle the click event on every message link
-    $('#message-link-' + message.id).on('click', function(e){
-      var id = $(e.target).attr('id').split('-')[2];
-      var title = getHeader(messages[id].payload.headers, 'Subject');
-      $('#myModalTitle').text(title);
-
-      var iframe = $('#message-iframe')[0].contentWindow.document;
-      // The message body goes to the iframe's content
-      var messageBody = getBody(messages[id].payload);
-      $('body', iframe).html(messageBody);
-      // Show the modal window
-      $('#message-modal').modal('show');
-
-    });
+    $('.table-inbox tbody').append(renderedRow);
   }
 
   function getHeader(headers, index) {
     var header = '';
 
     $.each(headers, function(){
-      if(this.name === index){
+      if(this.name === index)
+      {
         header = this.value;
       }
     });
@@ -176,7 +143,7 @@ var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
   }
 
   function getHTMLPart(arr) {
-    for(var x = 0; x <= arr.length; x++)
+    for(var x = 0; x < arr.length; x++)
     {
       if(typeof arr[x].parts === 'undefined')
       {
@@ -193,11 +160,31 @@ var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
     return '';
   }
 
-  // Initialise UI events
+  // Initialize UI events
   function init() {
+
     $('#authorize-button').on('click', function(){
       handleAuthClick();
     });
+    
+    $('.table-inbox tbody').on('click', 'a.message-link', function(e) {
+      var id, title, iframe, messageBody;
+
+      id = $(this).attr('id').split('-')[2];
+      
+      title = getHeader(Messages[id].payload.headers, 'Subject');
+      $('#myModalTitle').text(title);
+
+      iframe = $('#message-iframe')[0].contentWindow.document;
+      // The message body goes to the iframe's content
+      messageBody = getBody(Messages[id].payload);
+      $('body', iframe).html(messageBody);
+      
+      // Show the modal window
+      $('#message-modal').modal('show');
+
+    });
+
   }
 
   init();
@@ -210,9 +197,31 @@ var GoogleAPIMailClient = window.GoogleAPIMailClient || (function() {
 })();
 
 function handleClientLoad() {
-  // The configuration - ClientId & APIKey - is loaded from config.js
-  // This allows to prevent from uploading the secrets to the github repo
-  // `config.js` is part of `.gitignore`
+  // The configuration - ClientId & APIKey - is loaded from config.js,
+  // which allows to prevent from uploading the secrets to the github repo
+  // Note: `config.js` is part of `.gitignore`
   GoogleAPIMailClient.config(config);
   GoogleAPIMailClient.clientLoad();
+}
+
+/**
+*
+* The jQuery library does not feature a `when.all` function
+* to handle an array of promises, so we put up a polyfill
+*
+*/
+if (jQuery.when.all === undefined) {
+    jQuery.when.all = function(deferreds) {
+        var deferred = new jQuery.Deferred();
+        
+        $.when.apply(jQuery, deferreds).then(
+            function() {
+                deferred.resolve(Array.prototype.slice.call(arguments));
+            },
+            function() {
+                deferred.fail(Array.prototype.slice.call(arguments));
+            });
+
+        return deferred;
+    }
 }
