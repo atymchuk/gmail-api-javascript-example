@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "homepage": "https://github.com/atymchuk/gmail-api-js",
   "authors": [
-    "Alexander Tymchuk <alexander.tymchuk@gmail.com>"
+    "Jamie Shields http://www.sitepoint.com/author/jshields",
+    "Alex Tymchuk <alexander.tymchuk@gmail.com>"
   ],
   "description": "Sample Gmail API project",
   "keywords": [
